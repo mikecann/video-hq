@@ -9,9 +9,15 @@ let package = Package(
     products: [
         .executable(name: "video-hq", targets: ["VideoHQApp"])
     ],
+    dependencies: [
+        .package(path: "../lib/PrompterKit")
+    ],
     targets: [
         .executableTarget(
             name: "VideoHQApp",
+            dependencies: [
+                .product(name: "PrompterKit", package: "PrompterKit")
+            ],
             path: "Sources/VideoHQApp"
         ),
         .testTarget(
