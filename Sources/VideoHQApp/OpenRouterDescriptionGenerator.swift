@@ -55,8 +55,8 @@ struct OpenRouterDescriptionGenerator: VideoDescriptionGenerating {
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("https://github.com/mikecann/mikerosoft", forHTTPHeaderField: "HTTP-Referer")
-        request.setValue("mikerosoft/video-hq", forHTTPHeaderField: "X-Title")
+        request.setValue("https://github.com/mikecann/video-hq", forHTTPHeaderField: "HTTP-Referer")
+        request.setValue("video-hq", forHTTPHeaderField: "X-Title")
         request.httpBody = try JSONEncoder().encode(payload)
 
         let (data, response) = try await transport.data(for: request)

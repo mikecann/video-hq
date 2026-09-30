@@ -1,0 +1,13 @@
+.build/
+.swiftpm/
+Package.resolved
+node_modules/
+__pycache__/
+.venv/
+.env
+.env.*
+!.env.example
+dist/
+build/
+*.log
+.DS_Store

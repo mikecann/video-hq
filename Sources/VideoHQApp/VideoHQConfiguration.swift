@@ -1,6 +1,7 @@
 import Foundation
 
 struct VideoHQConfiguration {
+    let transcribeExecutableURL: URL
     let repoRoot: URL
     let projectsRoot: URL
     let openRouterAPIKey: String?
@@ -16,8 +17,10 @@ struct VideoHQConfiguration {
         notionAPIKey: String?,
         credentialDotenvURL: URL,
         filmoraAutomationRoot: URL = RepoLocator.filmoraAutomationRoot(),
-        roughCutPythonURL: URL = RepoLocator.roughCutPythonURL()
+        roughCutPythonURL: URL = RepoLocator.roughCutPythonURL(),
+        transcribeExecutableURL: URL = RepoLocator.transcribeExecutableURL()
     ) {
+        self.transcribeExecutableURL = transcribeExecutableURL
         self.repoRoot = repoRoot
         self.projectsRoot = projectsRoot
         self.openRouterAPIKey = openRouterAPIKey
@@ -25,10 +28,6 @@ struct VideoHQConfiguration {
         self.credentialDotenvURL = credentialDotenvURL
         self.filmoraAutomationRoot = filmoraAutomationRoot
         self.roughCutPythonURL = roughCutPythonURL
-    }
-
-    var transcribeExecutableURL: URL {
-        repoRoot.appendingPathComponent("tools/transcribe/transcribe")
     }
 
     static func load(
@@ -61,7 +60,8 @@ struct VideoHQConfiguration {
             filmoraAutomationRoot: filmoraAutomationRoot
                 ?? RepoLocator.filmoraAutomationRoot(environment: environment),
             roughCutPythonURL: roughCutPythonURL
-                ?? RepoLocator.roughCutPythonURL(environment: environment)
+                ?? RepoLocator.roughCutPythonURL(environment: environment),
+            transcribeExecutableURL: RepoLocator.transcribeExecutableURL(environment: environment)
         )
     }
 
@@ -127,8 +127,32 @@ enum RepoLocator {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
+    }
+
+    static func transcribeExecutableURL(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        bundle: Bundle = .main,
+        fileManager: FileManager = .default
+    ) -> URL {
+        if let configured = environment["VIDEO_HQ_TRANSCRIBE_EXECUTABLE"], !configured.isEmpty {
+            return URL(fileURLWithPath: configured)
+        }
+        if let configured = bundle.object(forInfoDictionaryKey: "VideoHQTranscribeExecutable") as? String,
+           !configured.isEmpty {
+            return URL(fileURLWithPath: configured)
+        }
+
+        // Finder apps get a minimal PATH. Also check the usual user and Homebrew bins.
+        let userBin = fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin")
+        let searchDirectories = (environment["PATH"] ?? "").components(separatedBy: ":")
+            + [userBin.path, "/opt/homebrew/bin", "/usr/local/bin"]
+        for directory in searchDirectories where !directory.isEmpty {
+            let candidate = URL(fileURLWithPath: directory).appendingPathComponent("transcribe")
+            if fileManager.isExecutableFile(atPath: candidate.path) {
+                return candidate
+            }
+        }
+        return userBin.appendingPathComponent("transcribe")
     }
 
     static func fallbackDotenvURL(bundle: Bundle = .main) -> URL? {
@@ -181,7 +205,7 @@ enum RepoLocator {
         }
 
         let mediaPython = fileManager.homeDirectoryForCurrentUser
-            .appendingPathComponent(".local/share/mikerosoft-media-venv/bin/python")
+            .appendingPathComponent(".local/share/video-hq/venv/bin/python")
         return fileManager.isExecutableFile(atPath: mediaPython.path)
             ? mediaPython
             : URL(fileURLWithPath: "/usr/bin/python3")

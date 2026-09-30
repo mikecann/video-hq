@@ -4,12 +4,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-PRIMARY_REPO_ROOT="$(git -C "$REPO_ROOT" worktree list --porcelain | sed -n 's/^worktree //p' | head -n 1)"
-DOTENV_PATH="${VIDEO_HQ_DOTENV_PATH:-$PRIMARY_REPO_ROOT/.env}"
+REPO_ROOT="$SCRIPT_DIR"
+DOTENV_PATH="${VIDEO_HQ_DOTENV_PATH:-$REPO_ROOT/.env}"
 PROJECTS_ROOT="${VIDEO_HQ_PROJECTS_ROOT:-$HOME/dev/convex/convex-videos}"
 FILMORA_AUTOMATION_ROOT="${VIDEO_HQ_FILMORA_AUTOMATION_ROOT:-$HOME/dev/me/automate-filmora}"
-ROUGH_CUT_PYTHON="${VIDEO_HQ_ROUGH_CUT_PYTHON:-$HOME/.local/share/mikerosoft-media-venv/bin/python}"
+ROUGH_CUT_PYTHON="${VIDEO_HQ_ROUGH_CUT_PYTHON:-$HOME/.local/share/video-hq/venv/bin/python}"
+TRANSCRIBE_EXECUTABLE="${VIDEO_HQ_TRANSCRIBE_EXECUTABLE:-$(command -v transcribe || true)}"
+TRANSCRIBE_EXECUTABLE="${TRANSCRIBE_EXECUTABLE:-$HOME/.local/bin/transcribe}"
 BUILD_CONFIGURATION="${VIDEO_HQ_BUILD_CONFIGURATION:-release}"
 APP_NAME="Video HQ"
 APP_DIR="${VIDEO_HQ_APP_DIR:-$HOME/Applications/$APP_NAME.app}"
@@ -17,8 +18,6 @@ APP_BIN="$APP_DIR/Contents/MacOS/video-hq"
 ICON_SOURCE="$SCRIPT_DIR/icons/video-hq.png"
 SIGNING_IDENTITY="${VIDEO_HQ_CODESIGN_IDENTITY:-}"
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
-LEGACY_APP_DIR="$HOME/Applications/Video Misc.app"
-LEGACY_APP_BIN="$LEGACY_APP_DIR/Contents/MacOS/video-misc"
 OPEN_APP=1
 
 if [[ "${1:-}" == "--no-open" ]]; then
@@ -35,14 +34,14 @@ fi
 
 mkdir -p "$PROJECTS_ROOT"
 
-if [[ ! -x "$REPO_ROOT/tools/transcribe/transcribe" ]]; then
-  echo "ERROR: missing executable transcribe launcher at $REPO_ROOT/tools/transcribe/transcribe" >&2
-  exit 1
+if [[ ! -x "$TRANSCRIBE_EXECUTABLE" ]]; then
+  echo "WARNING: transcribe is missing at $TRANSCRIBE_EXECUTABLE." >&2
+  echo "         Install https://github.com/mikecann/transcribe or set VIDEO_HQ_TRANSCRIBE_EXECUTABLE." >&2
 fi
 
 if ! command -v ffmpeg >/dev/null 2>&1; then
   echo "WARNING: ffmpeg is missing. Transcribe will not work until you run:" >&2
-  echo "  bash $REPO_ROOT/tools/transcribe/deps.sh" >&2
+  echo "  brew install ffmpeg" >&2
 fi
 
 if [[ ! -d "$FILMORA_AUTOMATION_ROOT/filmora_wfp" ]]; then
@@ -68,7 +67,7 @@ if [[ ! -x "$BINARY" ]]; then
   exit 1
 fi
 
-for existing_binary in "$APP_BIN" "$LEGACY_APP_BIN"; do
+for existing_binary in "$APP_BIN"; do
   if pgrep -f "$existing_binary" >/dev/null 2>&1; then
     echo "Stopping $(basename "$(dirname "$(dirname "$(dirname "$existing_binary")")")")..."
     pkill -f "$existing_binary" || true
@@ -78,8 +77,6 @@ for existing_binary in "$APP_BIN" "$LEGACY_APP_BIN"; do
     done
   fi
 done
-
-rm -rf "$LEGACY_APP_DIR"
 
 echo "Staging $APP_DIR..."
 rm -rf "$APP_DIR"
@@ -99,6 +96,11 @@ if [[ -f "$ICON_SOURCE" ]] && command -v iconutil >/dev/null 2>&1; then
   done
   iconutil -c icns "$ICONSET" -o "$APP_DIR/Contents/Resources/VideoHQ.icns"
 fi
+
+# Clone and project paths can contain XML characters, such as an ampersand.
+xml_escape() {
+  printf '%s' "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g'
+}
 
 cat >"$APP_DIR/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -132,15 +134,17 @@ cat >"$APP_DIR/Contents/Info.plist" <<PLIST
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>VideoHQRepoRoot</key>
-    <string>$REPO_ROOT</string>
+    <string>$(xml_escape "$REPO_ROOT")</string>
+    <key>VideoHQTranscribeExecutable</key>
+    <string>$(xml_escape "$TRANSCRIBE_EXECUTABLE")</string>
     <key>VideoHQDotenvPath</key>
-    <string>$DOTENV_PATH</string>
+    <string>$(xml_escape "$DOTENV_PATH")</string>
     <key>VideoHQProjectsRoot</key>
-    <string>$PROJECTS_ROOT</string>
+    <string>$(xml_escape "$PROJECTS_ROOT")</string>
     <key>VideoHQFilmoraAutomationRoot</key>
-    <string>$FILMORA_AUTOMATION_ROOT</string>
+    <string>$(xml_escape "$FILMORA_AUTOMATION_ROOT")</string>
     <key>VideoHQRoughCutPython</key>
-    <string>$ROUGH_CUT_PYTHON</string>
+    <string>$(xml_escape "$ROUGH_CUT_PYTHON")</string>
     <key>CFBundleDocumentTypes</key>
     <array>
         <dict>

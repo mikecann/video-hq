@@ -3,6 +3,37 @@ import XCTest
 @testable import VideoHQApp
 
 final class VideoHQConfigurationTests: XCTestCase {
+    func testDefaultRepoRootIsThisStandalonePackage() {
+        let expected = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        XCTAssertEqual(RepoLocator.repoRoot(environment: [:], bundle: .main), expected)
+    }
+
+    func testTranscriberCanBeConfiguredWithoutSiblingCheckout() throws {
+        let root = URL(fileURLWithPath: "/tmp/video-hq")
+        let configuration = try VideoHQConfiguration.load(
+            repoRoot: root,
+            fallbackDotenvURL: nil,
+            environment: ["VIDEO_HQ_TRANSCRIBE_EXECUTABLE": "/tmp/transcribe checkout/transcribe"]
+        )
+        XCTAssertEqual(configuration.transcribeExecutableURL.path, "/tmp/transcribe checkout/transcribe")
+    }
+
+    func testTranscriberIsDiscoveredOnPath() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let launcher = directory.appendingPathComponent("transcribe")
+        try Data().write(to: launcher)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcher.path)
+        XCTAssertEqual(
+            RepoLocator.transcribeExecutableURL(environment: ["PATH": directory.path], bundle: .main),
+            launcher
+        )
+    }
+
     func testDefaultProjectsRootUsesConvexVideosFolder() {
         let root = RepoLocator.projectsRoot(environment: [:], bundle: .main)
 
@@ -57,15 +88,15 @@ final class VideoHQConfigurationTests: XCTestCase {
         )
         XCTAssertEqual(
             configuration.transcribeExecutableURL,
-            repoRoot.appendingPathComponent("tools/transcribe/transcribe")
+            RepoLocator.transcribeExecutableURL(environment: [:], bundle: .main)
         )
     }
 
-    func testConfigurationFallsBackToPrimaryCheckoutDotenv() throws {
+    func testConfigurationReadsExplicitCredentialFile() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let worktree = directory.appendingPathComponent("worktree", isDirectory: true)
-        let primary = directory.appendingPathComponent("primary", isDirectory: true)
+        let primary = directory.appendingPathComponent("credentials", isDirectory: true)
         try FileManager.default.createDirectory(at: worktree, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: primary, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }

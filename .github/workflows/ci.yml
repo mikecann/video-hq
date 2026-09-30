@@ -1,0 +1,21 @@
+name: CI
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check shell syntax
+        run: |
+          for script in install.sh setup_mac.sh video-hq tests/*.sh; do
+            bash -n "$script"
+          done
+      - name: Test installer and launcher
+        run: bash tests/install_test.sh
+      - name: Test Swift package
+        run: swift test
+      - name: Build release app
+        run: swift build -c release

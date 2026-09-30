@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The installed launcher is a symlink; find the clone before invoking setup.
+LAUNCHER="${BASH_SOURCE[0]}"
+while [[ -L "$LAUNCHER" ]]; do
+  LAUNCHER_DIR="$(cd "$(dirname "$LAUNCHER")" && pwd)"
+  LAUNCHER="$(readlink "$LAUNCHER")"
+  [[ "$LAUNCHER" == /* ]] || LAUNCHER="$LAUNCHER_DIR/$LAUNCHER"
+done
+SCRIPT_DIR="$(cd "$(dirname "$LAUNCHER")" && pwd)"
 APP_DIR="${VIDEO_HQ_APP_DIR:-$HOME/Applications/Video HQ.app}"
 
 case "${1:-open}" in
